@@ -1,18 +1,14 @@
-﻿using Microsoft.AspNetCore.Razor.Language.CodeGeneration;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Razor.Language.CodeGeneration;
 
 namespace RazorRenderer
 {
-    class VirtualDomTarget : RuntimeTarget
+    class VirtualDomTarget : CodeTarget
     {
-        private RuntimeTarget _defaultTarget;
+        private CodeTarget _defaultTarget;
         private IDictionary<string, string> _tagNamesToSourceFiles;
 
-        public VirtualDomTarget(RuntimeTarget defaultTarget, IDictionary<string, string> tagNamesToSourceFiles)
+        public VirtualDomTarget(CodeTarget defaultTarget, IDictionary<string, string> tagNamesToSourceFiles)
         {
             _defaultTarget = defaultTarget;
             _tagNamesToSourceFiles = tagNamesToSourceFiles;

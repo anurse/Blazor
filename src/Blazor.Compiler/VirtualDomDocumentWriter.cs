@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.AspNetCore.Razor.Language.CodeGeneration;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
@@ -14,7 +14,7 @@ namespace RazorRenderer
 {
     class VirtualDomDocumentWriter : DocumentWriter
     {
-        private RuntimeTarget _target;
+        private CodeTarget _target;
         private CSharpRenderingContext _context;
         private IDictionary<string, string> _tagNamesToSourceFiles;
         private readonly static Regex _incompleteAttributeRegex = new Regex(@"\s(?<name>[a-z0-9\.\-:_]+)\s*\=\s*$");
@@ -24,7 +24,7 @@ namespace RazorRenderer
             "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
         };
 
-        public VirtualDomDocumentWriter(RuntimeTarget target, CSharpRenderingContext context, IDictionary<string, string> tagNamesToSourceFiles)
+        public VirtualDomDocumentWriter(CodeTarget target, CSharpRenderingContext context, IDictionary<string, string> tagNamesToSourceFiles)
         {
             _target = target;
             _context = context;
@@ -49,7 +49,7 @@ namespace RazorRenderer
         private class Visitor : RazorIRNodeVisitor
         {
             private readonly CSharpRenderingContext _context;
-            private readonly RuntimeTarget _target;
+            private readonly CodeTarget _target;
             private readonly IDictionary<string, string> _tagNamesToSourceFiles;
             private CSharpRenderingContext Context => _context;
             private string _unconsumedHtml;
@@ -61,7 +61,7 @@ namespace RazorRenderer
 
             private int _sourceSequence;
 
-            public Visitor(RuntimeTarget target, CSharpRenderingContext context, IDictionary<string, string> tagNamesToSourceFiles)
+            public Visitor(CodeTarget target, CSharpRenderingContext context, IDictionary<string, string> tagNamesToSourceFiles)
             {
                 _target = target;
                 _context = context;
@@ -82,7 +82,7 @@ namespace RazorRenderer
                 RenderChildren(node);
             }
 
-            public override void VisitNamespace(NamespaceDeclarationIRNode node)
+            public override void VisitNamespaceDeclaration(NamespaceDeclarationIRNode node)
             {
                 Context.Writer
                     .Write("namespace ")
@@ -95,7 +95,7 @@ namespace RazorRenderer
                 }
             }
 
-            public override void VisitClass(ClassDeclarationIRNode node)
+            public override void VisitClassDeclaration(ClassDeclarationIRNode node)
             {
                 Context.Writer
                     .Write(node.AccessModifier)
@@ -138,7 +138,7 @@ namespace RazorRenderer
                 }
             }
 
-            public override void VisitRazorMethodDeclaration(RazorMethodDeclarationIRNode node)
+            public override void VisitMethodDeclaration(MethodDeclarationIRNode node)
             {
                 Context.Writer.WriteLine("#pragma warning disable 1998");
 
@@ -197,17 +197,22 @@ namespace RazorRenderer
                 throw new NotImplementedException(nameof(VirtualDomDocumentWriter) + " doesn't support tag helpers.");
             }
 
-            public override void VisitInitializeTagHelperStructure(InitializeTagHelperStructureIRNode node)
-            {
-                throw new NotImplementedException();
-            }
-
             public override void VisitCreateTagHelper(CreateTagHelperIRNode node)
             {
                 throw new NotImplementedException();
             }
 
-            public override void VisitExecuteTagHelpers(ExecuteTagHelpersIRNode node)
+            public override void VisitAddTagHelperHtmlAttribute(AddTagHelperHtmlAttributeIRNode node)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void VisitSetTagHelperProperty(SetTagHelperPropertyIRNode node)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void VisitTagHelperBody(TagHelperBodyIRNode node)
             {
                 throw new NotImplementedException();
             }
@@ -215,7 +220,8 @@ namespace RazorRenderer
             private CSharpExpressionIRNode MakeCSharpExpressionIRNode(RazorIRNode parent, string csharpExpressionContent)
             {
                 var content = new CSharpExpressionIRNode { Parent = parent, Source = parent.Source };
-                content.Children.Add(new RazorIRToken {
+                content.Children.Add(new RazorIRToken
+                {
                     Kind = RazorIRToken.TokenKind.CSharp,
                     Parent = content,
                     Source = parent.Source,
@@ -318,7 +324,7 @@ namespace RazorRenderer
             {
                 Context.BasicWriter.WriteCSharpStatement(Context, node);
             }
-            
+
             public override void VisitHtmlAttribute(HtmlAttributeIRNode node)
             {
                 _nextAttributeName = node.Name;
@@ -362,14 +368,15 @@ namespace RazorRenderer
                     }
                 }
             }
-            
+
             public override void VisitHtmlAttributeValue(HtmlAttributeValueIRNode node)
             {
-                _nextElementAttributes[_nextAttributeName] = CreateHtmlContentIRNode(node.Content, node.Source, node.Parent);
-                _nextAttributeName = null;
+                throw new NotImplementedException();
+                //_nextElementAttributes[_nextAttributeName] = CreateHtmlContentIRNode(node.Content, node.Source, node.Parent);
+                //_nextAttributeName = null;
             }
 
-            public override void VisitCSharpAttributeValue(CSharpAttributeValueIRNode node)
+            public override void VisitCSharpStatementAttributeValue(CSharpStatementAttributeValueIRNode node)
             {
                 if (node.Children.Count > 1)
                 {
@@ -378,23 +385,26 @@ namespace RazorRenderer
 
                 var value = node.Children.Single();
 
-                if (value is CSharpExpressionIRNode)
+                // For syntax like <button onclick="@{ some C# statement }">...</button>,
+                // we convert the statement into a lambda, as if you wrote onclick="@(() => { some C# statement })"
+                // since that does what you'd want and is generally a good syntax for callbacks
+                var innerCSharp = (RazorIRToken)value.Children.Single();
+                var attributeValue = MakeCSharpExpressionIRNode(node.Parent, $"_ => {{ {innerCSharp.Content} }}");
+                _nextElementAttributes[_nextAttributeName] = attributeValue;
+
+                _nextAttributeName = null;
+            }
+
+            public override void VisitCSharpExpressionAttributeValue(CSharpExpressionAttributeValueIRNode node)
+            {
+                if (node.Children.Count > 1)
                 {
-                    _nextElementAttributes[_nextAttributeName] = value;
+                    throw new ArgumentException("Attribute values can't contain more than one code element");
                 }
-                else if (value is CSharpStatementIRNode)
-                {
-                    // For syntax like <button onclick="@{ some C# statement }">...</button>,
-                    // we convert the statement into a lambda, as if you wrote onclick="@(() => { some C# statement })"
-                    // since that does what you'd want and is generally a good syntax for callbacks
-                    var innerCSharp = (RazorIRToken)value.Children.Single();
-                    var attributeValue = MakeCSharpExpressionIRNode(node.Parent, $"_ => {{ {innerCSharp.Content} }}");
-                    _nextElementAttributes[_nextAttributeName] = attributeValue;
-                }
-                else
-                {
-                    throw new ArgumentException("In VisitCSharpAttributeValue, node.Children.Single() was of unexpected type " + value.GetType().FullName);
-                }
+
+                var value = node.Children.Single();
+
+                _nextElementAttributes[_nextAttributeName] = value;
 
                 _nextAttributeName = null;
             }
@@ -411,7 +421,8 @@ namespace RazorRenderer
                     new TextSource(htmlToTokenize),
                     HtmlEntityService.Resolver);
                 HtmlToken nextToken;
-                while ((nextToken = tokenizer.Get()).Type != HtmlTokenType.EndOfFile) {
+                while ((nextToken = tokenizer.Get()).Type != HtmlTokenType.EndOfFile)
+                {
                     switch (nextToken.Type)
                     {
                         case HtmlTokenType.StartTag:

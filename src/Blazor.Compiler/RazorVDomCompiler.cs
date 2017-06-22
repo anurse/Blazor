@@ -1,4 +1,4 @@
-﻿using Blazor.Components;
+using Blazor.Components;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.AspNetCore.Razor.Language.CodeGeneration;
 using Microsoft.CodeAnalysis;

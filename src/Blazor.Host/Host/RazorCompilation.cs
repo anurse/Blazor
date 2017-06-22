@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
 using RazorRenderer;
@@ -8,7 +8,7 @@ using System.Linq;
 
 namespace Blazor.Sdk.Host
 {
-    internal static class RazorCompilation
+    public static class RazorCompilation
     {
         static PathString binDir = new PathString("/_bin");
         static IDictionary<string, byte[]> cachedCompilationResults = new Dictionary<string, byte[]>();
@@ -109,7 +109,7 @@ namespace Blazor.Sdk.Host
                 RazorVDomCompiler.CompileToStream(
                     enableLogging: false,
                     rootDir: rootDir,
-                    referenceAssemblies: referenceAssemblyFilenames.Select(filename => Path.Combine("bin", "Debug", "netcoreapp1.0", filename)).ToArray(),
+                    referenceAssemblies: referenceAssemblyFilenames.Select(filename => Path.Combine("bin", "Debug", "netcoreapp2.0", filename)).ToArray(),
                     outputAssemblyName: Path.GetFileNameWithoutExtension(assemblyFilename),
                     outputStream: ms);
 
